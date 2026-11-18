@@ -11,6 +11,6 @@ case "$platform" in
     fi
     echo macos-x86_64 ;;
   Linux/x86_64) echo linux-x86_64 ;;
-  MINGW*64/x86_64|MSYS*/x86_64|CYGWIN*/x86_64) echo windows-x86_64 ;;
+  MINGW*/x86_64|MSYS*/x86_64|CYGWIN*/x86_64) echo windows-x86_64 ;;
   *) echo "release: unsupported build host $platform" >&2; exit 1 ;;
 esac
