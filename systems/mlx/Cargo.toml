@@ -10,6 +10,6 @@ license = "FSL-1.1-ALv2"
 anyhow = "1"
 
 # MLX is Apple silicon's: on other systems the crate is empty and pulls nothing in
-[target.'cfg(target_os = "macos")'.dependencies]
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
 mlx-rs = "=0.34.0"
 

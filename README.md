@@ -71,6 +71,9 @@ five people on one plan ([pricing](https://raea.io/pricing/)). Each release's no
 
 ## Install
 
+See the [Intel macOS CLI candidate instructions](docs/intel-mac.md) for building,
+installing, and testing on the 2019 MacBook Air. Native validation is pending.
+
 ```sh
 curl -fsSL https://raea.io/install | sh
 ```

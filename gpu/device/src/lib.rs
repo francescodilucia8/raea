@@ -80,6 +80,10 @@ fn make() -> Result<Handles, String> {
     let instance = wgpu::Instance::new(desc);
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, ..Default::default() }))
         .map_err(|e| format!("no GPU adapter: {e}"))?;
+    if std::env::var_os("RAEA_WGPU_ADAPTER_LOG").is_some() {
+        let info = adapter.get_info();
+        eprintln!("raea GPU adapter: {} ({:?}, {:?})", info.name, info.backend, info.device_type);
+    }
     let mut features = adapter.features();
     if adapter.get_info().device_type == wgpu::DeviceType::DiscreteGpu {
         features.remove(wgpu::Features::MAPPABLE_PRIMARY_BUFFERS);

@@ -13,6 +13,11 @@ pub fn register_sandbox() {
 }
 
 pub fn cli(args: &[String]) -> i32 {
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    if args.first().is_some_and(|cmd| matches!(cmd.as_str(), "index" | "fingerprint" | "song" | "neural")) {
+        eprintln!("raea: {} is unavailable in the Intel macOS CLI (requires ONNX Runtime or Apple Silicon MLX)", args[0]);
+        return 1;
+    }
     // the media verbs (`media probe|still|sheet|...`, `ffmpeg`, `ffprobe`: raea-media, no ffmpeg binary) and an HTML
     // composition's render are raea-app-media's (apps/media/src/command.rs)
     let html = args.first().map(String::as_str) == Some("render") && args.get(1).is_some_and(|e| e.ends_with(".html") || Path::new(e).join("index.html").is_file());
@@ -74,33 +79,6 @@ pub fn cli(args: &[String]) -> i32 {
     code
 }
 
-/// `raea traces [show [N|last|DIR]]`: the sessions every raea app left (newest first: how each ended, its
-/// glitches), or one told in full (why it crashed, its worst frames, its errors, its memory).
-pub fn traces(args: &[String]) -> R<String> {
-    let all = raea_io_trace::sessions();
-    if args.get(1).map(String::as_str) == Some("show") {
-        let which = args.get(2).map(String::as_str).unwrap_or("last");
-        let dir = match which {
-            "last" => all.first().map(|s| s.1.clone()),
-            n if n.parse::<usize>().is_ok() => all.get(n.parse::<usize>().unwrap()).map(|s| s.1.clone()),
-            p => Some(PathBuf::from(p)),
-        }
-        .ok_or("no such session (raea traces lists them)")?;
-        return Ok(raea_io_trace::summarize(&dir));
-    }
-    let mut out = format!("{:<4} {:<12} {:<28} {:<18} {:>9} {:>8}  {}\n", "#", "app", "session", "ended", "glitches", "errors", "folder");
-    for (i, (app, d)) in all.iter().enumerate().take(40) {
-        let events = std::fs::read_to_string(d.join("events.jsonl")).unwrap_or_default();
-        let glitches = events.lines().filter(|l| l.contains("\"kind\":\"glitch\"")).count();
-        let errors = events.lines().filter(|l| l.contains("\"level\":\"ERROR\"") || l.contains("\"kind\":\"error\"") || l.contains("\"kind\":\"gpu_error\"")).count();
-        out += &format!("{:<4} {:<12} {:<28} {:<18} {:>9} {:>8}  {}\n", i, app, d.file_name().unwrap_or_default().to_string_lossy(), raea_io_trace::status(d), glitches, errors, d.display());
-    }
-    if all.is_empty() {
-        out += "(no sessions yet)\n";
-    }
-    Ok(out)
-}
-
 /// `raea check`'s host (the TS evaluator, the bundle runner, taste's kinds), which runs the notes' asks too (DR6).
 const CHECK: raea_app_direction::check::Host = raea_app_direction::check::Host { ts: raea_app_direction::ts::Host { eval: spec::spec_json, run: run_bundle }, kinds: taste_kinds };
 fn notes_run(project: &Path, rules: &[raea_app_notes::check::Rule], args: &[String], whole: bool) -> R<Vec<raea_app_notes::check::Ran>> {
@@ -145,7 +123,10 @@ pub fn run(args: &[String]) -> R<String> {
         // a workspace's files and specs (docs/projects.feature), listed under render's usage like library
         let usage = format!("{usage}\n       raea spec FILE.ts [--as brief|script|taste|plan|controller]   (a spec's default export as JSON, checked against its schema: brief.ts, script.ts, taste.ts, plan.ts, controllers/ID.ts)\n       raea workspace init [NAME] [--layout LAYOUT] | raea workspace adopt DIR [--name NAME] | raea workspace [--json]   (a workspace: a git repo of projects and controllers under raea.root, ~/Documents/raea unless git config says)\n       raea project new NAME [--storage inline|submodule] | raea project split NAME [--remote URL] | raea project join NAME | raea project [--json]   (a project in the workspace: its folder, brief.ts, media/, out/; split and join keep its history)\n       raea controller ls [--json] | raea controller get PATH [--json] | raea controller set PATH VALUE [--project] [--by NAME] | raea controller write FILE.ts [--by NAME] | raea controller rm ID [--by NAME]   (the workspace's controllers, controllers/ID.ts; PATH is controller.group.field; every change a commit)\n       raea check EDIT.tsx --quick [--shape S] [--platform P] [--taste T] [-o check.json]   (three stills of a composition checked for text: clipped, cramped, safe areas, sizes; about a second)\n       raea hook [claude|codex|gemini|kimi]   (every agent's tool hooks, which raea skills install adds: before a shell command, media opened in the Mac's viewer while the raea app is installed is stopped once for raea show (the same command again goes through); after a save, the quick check on a composition)\n       raea next [DIR]   (the two or three useful next steps for the project, from its brief, compositions, renders and checks)\n       raea doctor [--fix] [DIR]   (what doesn't match this raea: old brief files, an older workspace format, an agent's skill from another version)\n       raea app run|check|bundle APP.tsx [--target web|native] [--size WxH] [--script steps.json] [--png DIR] [-o App.app]   (a TSX app on @raea/ui: its window, the headless check, a Mac app; web is Blitz on Bevy, native is Rune; the app's `export const app` sets the target, web when it doesn't; raea rune ... is --target native)\n       {}\n       {}\n       {}   ({})\n       {}\n       {}\n       {}", skill::USAGE, tools::blender::USAGE, tools::motion::SETUP_USAGE, tools::motion::SETUP_ABOUT, raea_app_engines::godot::USAGE, raea_app_engines::shot::USAGE, raea_app_engines::round::USAGE);
         let (export_game, capcut, layers, xml, scene, physics, splat, wear) = (raea_app_game::USAGE, raea_app_capcut::USAGE, raea_app_layers::USAGE, raea_app_layers::USAGE_XML, export::SCENE_USAGE, motion::physics::USAGE, tools::splat::USAGE, raea_runtime_wear::USAGE);
+        #[cfg(not(all(target_os = "macos", target_arch = "x86_64")))]
         let apps = format!("       {}\n       {}\n       {}\n       {}\n       {}\n       {}\n       {}\n       {}\n       {}\n", raea_app_direction::check::USAGE, raea_app_check::USAGE, raea_app_solid::USAGE, raea_app_judge::USAGE, raea_app_direction::USAGE, raea_app_direction::findings::USAGE, raea_app_notes::USAGE, raea_app_fingerprint::USAGE, raea_sys_index::cli::USAGE);
+        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+        let apps = format!("       {}\n       {}\n       {}\n       {}\n       {}\n       {}\n       {}\n       Intel macOS: fingerprint, index, song, neural, motion and setup motion are unavailable.\n", raea_app_direction::check::USAGE, raea_app_check::USAGE, raea_app_solid::USAGE, raea_app_judge::USAGE, raea_app_direction::USAGE, raea_app_direction::findings::USAGE, raea_app_notes::USAGE);
         return Ok(format!("raea: renders, plays and checks raea compositions (React and TypeScript) on the GPU.\n\nusage: {usage}\n       raea init   (a project's files where they're missing: edit.tsx, cuts.ts, components/, AGENTS.md)\n       raea cut TAKE \"line\" ... | --at A-B ... [--append]   (cuts.ts and words.json: a take under media/ cut in the pauses around each line it says, transcribed first if it has no TAKE.words.json; or at those seconds)\n       raea frame TAKE [--at S]   (how a take fits the edit: a talking take for <FaceFrame>, a screen for <ScreenFit>, from where its face is)\n       raea component list | raea component add NAME ... [--shared] [--force] | raea part list | raea part add NAME ... [--shared] [--force]   (a ready component or set copied into components/, or the workspace's shared/components/ with --shared, yours to change; raea part is its old name)\n       raea brand DOMAIN|URL   (the brand kit read from its website on this machine: brand/brand.css, brand/brand.json, BRAND.md, logos in media/brand; says when a plain fetch saw too little)\n       raea guide [NAME]   (craft, the floor read before any edit; the modes: pitch, explain, story, play, tool; motion, music, layout and the rest; bevy and bevy/NAME for 3D)\n       raea context PROJECT   (what to read before working on a project: taste, brief, look, the floor and its modes' guides)\n{apps}       raea play EDIT.tsx [--input | --input-script KEYS.json] [--size WxH] [--seconds N|end]   (a game, live; also: --input-log FILE --offscreen --snapshot T FILE --json FILE --seek F FILE --pick X,Y --view YAW,PITCH,DISTANCE --scrub N --baked --autoplay --no-vsync --master --3d)\n       {export_game}   (a game as a program of its own: a Mac app or a command)\n       {capcut}\n       {layers}\n       {xml}\n       {scene}   (what each 3D part rests on: floating, sunk and clipping parts; light: the scene's lighting)\n       {physics}   (the bakes <Physics> and <Goo> make)\n       {wear}   (a .glb's weathering causes for raea/wear: the model with a second UV set and its cause maps, made once in the asset store)\n       {splat}   (footage trained into a Gaussian splat for <Splat>; setup installs its tools)\n       raea run SCRIPT.ts   (a TypeScript program on the engine, headless: its default export is called, what it prints is the answer; a check like a room's checkLayout; also: --timeout S)\n       raea gen image|video|music|sfx|speech|mesh|text \"PROMPT\" | gen plan|run FLOW.ts|FLOW.json | gen comfy import|export|run|schema FILE | gen models | gen balance   (generated media through made.app, fal, Replicate, OpenRouter, Modal or ComfyUI; ComfyUI workflows both ways: raea gen alone lists its flags)\n       {neural_usage}   (DLSS 5 neural rendering on a `render --aov` folder, with its motion and depth: your own MLX-DLSS build and weights, RAEA_MLXDLSS and RAEA_DLSS_MODEL)\n       {light_usage}   (each scene on each light path against its path-traced reference: distance in stops, the worst tile, a moving shot's flicker, a frame's cost; DIR/report.json)\n       raea mezz [--check] PATH...   (an intra-only ProRes copy of each long-GOP source over 1080p, for smooth scrubbing; --check says which would get one)\n       raea traces [show [N|last|DIR]]   (the sessions raea left, newest first: how each ended, its glitches; show tells one in full)"));
     }
     // `--version`: the release's version, which a skill's front matter names (docs/skills.feature SK6)
@@ -219,9 +200,11 @@ pub fn run(args: &[String]) -> R<String> {
     if args[0] == "world" { std::process::exit(raea_app_direction::cli(&args[1..])); } // a frame as one world of facts (docs/direction.feature DR1)
     if args[0] == "findings" { return raea_app_direction::findings::cli(args); } // the project's record read back (DR3)
     if args[0] == "notes" { std::process::exit(raea_app_notes::cli(&args[1..], spec::spec_json, notes_run)); } // a person's notes as files, restated as asks, each with a check (DR5, DR6)
+    #[cfg(not(all(target_os = "macos", target_arch = "x86_64")))]
     if args[0] == "fingerprint" { std::process::exit(raea_app_fingerprint::cli(&args[1..], spec::spec_json)); } // a person's sense of good work as axes over on-device encoders (docs/fingerprint.feature FP3a, FP14a)
+    #[cfg(not(all(target_os = "macos", target_arch = "x86_64")))]
     if args[0] == "index" { std::process::exit(raea_sys_index::cli::cli(&args[1..])); } // every picture on a folder or a drive searchable by words, embedded on the Neural Engine (docs/index.feature IX13)
-    if args[0] == "traces" { return traces(args); }
+    if args[0] == "traces" { return raea_io_trace::traces(args); }
     if args.first().map(String::as_str) == Some("play") {
         return raea_app_play::play(args);
     }

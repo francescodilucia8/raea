@@ -61,6 +61,10 @@ pub fn call(name: &str, args: &Value) -> R<Value> {
     let f = table().read().unwrap().get(name).map(|c| c.f.clone());
     match f {
         Some(f) => f(args),
+        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+        None if name.starts_with("ml.") || name.starts_with("speech.") => {
+            Err(format!("native call {name} is unavailable on Intel macOS (requires ONNX Runtime)"))
+        }
         None => Err(format!("no native call \"{name}\" in this host")),
     }
 }

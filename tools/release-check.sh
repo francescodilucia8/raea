@@ -20,6 +20,11 @@ fail() { echo "release: $* (see $check)" >&2; exit 1; }
 raea=$check/raea/bin/raea
 [ -f "$raea.exe" ] && raea=$raea.exe
 [ -f "$raea" ] || fail "no raea in bin/"
+if [[ $(basename "$archive") == *-macos-x86_64.tar.gz ]]; then
+  bash "$(dirname "$0")/release/check-intel.sh" "$check/raea"
+  rm -rf "$check"
+  exit 0
+fi
 # the edit in a folder of its own: raea reads every file under a project, and the install isn't the user's project
 mkdir -p "$check/p"
 cat > "$check/p/hello.tsx" <<'TSX'

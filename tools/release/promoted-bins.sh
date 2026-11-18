@@ -11,10 +11,11 @@ from=${1:?FROM}
 dest=${2:?DEST}
 repo=${GITHUB_REPOSITORY:-shinyobjectz/raea}
 v=${from#v}
-case $(uname -s) in
-  Linux) platform=linux-x86_64 ext=tar.gz os=Linux ;;
-  MINGW*|MSYS*|CYGWIN*) platform=windows-x86_64 ext=zip os=Windows ;;
-  *) platform=macos-arm64 ext=tar.gz os=macOS ;;
+platform=$(bash "$(dirname "$0")/platform.sh")
+case "$platform" in
+  linux-x86_64) ext=tar.gz os=Linux ;;
+  windows-x86_64) ext=zip os=Windows ;;
+  macos-*) ext=tar.gz os=macOS ;;
 esac
 archive=raea-$v-$platform.$ext
 tmp=$(mktemp -d)

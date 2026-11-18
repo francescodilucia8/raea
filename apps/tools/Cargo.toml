@@ -17,5 +17,6 @@ serde_json = "1"
 # the verbs' flags read as a render reads its own
 raea-runtime-bundle = { path = "../../runtime/bundle" }
 raea-runtime-export = { path = "../../runtime/export" }
+[target.'cfg(not(all(target_os = "macos", target_arch = "x86_64")))'.dependencies]
 # `raea motion` and `raea setup motion` (apps/motion), still reached as tools::motion
 raea-app-motion = { path = "../motion" }

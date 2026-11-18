@@ -31,7 +31,7 @@ fn main() {
     let (triple, host) = (std::env::var("TARGET").unwrap(), std::env::var("HOST").unwrap());
     let cross = (triple != host).then_some(triple);
     let mut cmd = Command::new(cargo);
-    cmd.args(["build", "--release", "--lib", "--manifest-path"]).arg(manifest.join("../../engine/bundle/Cargo.toml"));
+    cmd.args(["build", "--release", "--locked", "--lib", "--manifest-path"]).arg(manifest.join("../../engine/bundle/Cargo.toml"));
     if let Some(t) = &cross {
         cmd.args(["--target", t]);
     }

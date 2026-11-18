@@ -28,11 +28,11 @@ raea-core-brief = { path = "../../core/brief" }
 # `raea workspace`, `raea project` and `raea controller` (docs/projects.feature PJ1-PJ4)
 raea-app-workspace = { path = "../../apps/workspace" }
 # raea-runtime-react's defaults
-raea-runtime-react = { path = "../../runtime/react", default-features = false, features = ["h264", "av1", "scripts", "modules", "network", "ml"] }
+raea-runtime-react = { path = "../../runtime/react", default-features = false, features = ["h264", "av1", "scripts", "modules", "network"] }
 # `raea wear bake`: raea/wear's bake from a shell (docs/wear.feature WR4)
 raea-runtime-wear = { path = "../../runtime/wear" }
 # the sound of its renders and plays: <Seedling> samples and speech (raea-runtime-sound's features)
-raea-runtime-sound = { path = "../../runtime/sound", features = ["seedling", "ml"] }
+raea-runtime-sound = { path = "../../runtime/sound", features = ["seedling"] }
 raea-runtime-export = { path = "../../runtime/export" }
 # a bake finds the bundle's functions (raea-modules), so an edit re-bakes only the frames it changed
 raea-runtime-bake = { path = "../../runtime/bake", features = ["modules"] }
@@ -58,10 +58,6 @@ raea-app-check = { path = "../../apps/check" }
 raea-app-direction = { path = "../../apps/direction" }
 # `raea notes`: a person's notes as files the work is held to (docs/direction.feature DR5)
 raea-app-notes = { path = "../../apps/notes" }
-# `raea fingerprint`: axes with small heads over on-device encoders, and the service that keeps them loaded (docs/fingerprint.feature FP3a)
-raea-app-fingerprint = { path = "../../apps/fingerprint" }
-# `raea index`: every picture on a folder or a drive searchable by words, embedded on the Neural Engine (docs/index.feature IX13)
-raea-sys-index = { path = "../../systems/index" }
 raea-app-sound = { path = "../../apps/sound" }
 raea-app-ci = { path = "../../apps/ci" }
 raea-app-tools = { path = "../../apps/tools" }
@@ -76,12 +72,22 @@ raea-app-targets = { path = "../../apps/targets" }
 raea-app-game = { path = "../../apps/game" }
 raea-app-capcut = { path = "../../apps/capcut" }
 raea-app-layers = { path = "../../apps/layers" }
-raea-app-play = { path = "../../apps/play", features = ["ml"] }
+raea-app-play = { path = "../../apps/play" }
 raea-bevy-plugins = { path = "../../engine/bevy-plugins", optional = true }
 # raea-bevy-sdk's reflection of the plugin build's App: the type registry, a one-camera program, the animation type
 bevy = { version = "=0.20.0", default-features = false }
 raea-core-program = { path = "../../core/program" }
 raea-core-animate = { path = "../../core/animate" }
+
+# The pinned ONNX Runtime distribution has no x86_64-apple-darwin library.
+[target.'cfg(not(all(target_os = "macos", target_arch = "x86_64")))'.dependencies]
+raea-runtime-react = { path = "../../runtime/react", default-features = false, features = ["ml"] }
+raea-runtime-sound = { path = "../../runtime/sound", features = ["ml"] }
+raea-app-play = { path = "../../apps/play", features = ["ml"] }
+# `raea fingerprint`: axes with small heads over on-device encoders, and the service that keeps them loaded (docs/fingerprint.feature FP3a)
+raea-app-fingerprint = { path = "../../apps/fingerprint" }
+# `raea index`: every picture on a folder or a drive searchable by words, embedded on the Neural Engine (docs/index.feature IX13)
+raea-sys-index = { path = "../../systems/index" }
 
 [features]
 # Bevy plugins compiled in (raea-bevy-plugins), as tools/bevy-plugins.sh names them: bevy-plugins,raea-bevy-plugins/avian,...

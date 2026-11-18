@@ -28,6 +28,9 @@
 # checks the archive with tools/release-check.sh: unpacked into a fresh folder, its raea renders a frame with
 # RAEA_NO_TREE=1 (so it can't be reading this checkout), has the plugin catalog, names none of raea's API and holds
 # nothing key-shaped (on Windows, no Microsoft file). Nothing is published.
+#
+# On Intel macOS, RAEA_INTEL_CANDIDATE=1 packages the scoped CLI and bundler
+# as raea-VERSION-macos-x86_64.tar.gz. See docs/intel-mac.md for validation.
 set -eu
 version=${1:?usage: release.sh VERSION BIN_DIR [REF]}
 bin=$(cd "${2:?usage: release.sh VERSION BIN_DIR [REF]}" && pwd)
@@ -35,11 +38,12 @@ ref=${3:-HEAD}
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 out=$root/dist
-case $(uname -s) in
-  Linux) platform=linux-x86_64 ;;
-  MINGW*|MSYS*|CYGWIN*) platform=windows-x86_64 ;;
-  *) platform=macos-arm64 ;;
-esac
+platform=$(bash tools/release/platform.sh)
+intel_candidate=0
+if [ "$platform" = macos-x86_64 ]; then
+  [ "${RAEA_INTEL_CANDIDATE:-}" = 1 ] || { echo "release: Intel packaging requires RAEA_INTEL_CANDIDATE=1" >&2; exit 1; }
+  intel_candidate=1
+fi
 name=raea-$version-$platform
 stage=$(mktemp -d)/raea
 mkdir -p "$stage/bin" "$stage/share/raea" "$out"
@@ -74,7 +78,10 @@ skills_at() {
   # its skills/ folder alone: the repo's root holds a symlink (AGENTS.md) that Windows' tar can't make, and nothing reads it
   mkdir -p "$1" && git -C skills archive "$pin" skills | tar -x -C "$1"
 }
-if [ ! -f "$root/apps/app/src/acp/protocol.ts" ]; then
+if [ "$intel_candidate" = 1 ]; then
+  # The candidate has a reduced CLI, so the upstream full-edition help/skills gate does not apply.
+  "$raea_bin" --version
+elif [ ! -f "$root/apps/app/src/acp/protocol.ts" ]; then
   [ -n "${RAEA_SKILLS_PASSED:-}" ] || { echo "release.sh: no feed app here (apps/app), so the skills gate can't run; run tools/skills.sh check in a checkout with the feed app, then name the commit it passed on as RAEA_SKILLS_PASSED (release.yml: a \"skills-passed: <sha>\" line in the annotated tag's message, or the skills_passed input when run by hand)" >&2; exit 1; }
   git rev-parse -q --verify "$RAEA_SKILLS_PASSED^{commit}" >/dev/null || { echo "release.sh: RAEA_SKILLS_PASSED=$RAEA_SKILLS_PASSED isn't a commit here (a full SHA, fetched)" >&2; exit 1; }
   git diff --quiet "$RAEA_SKILLS_PASSED" "$ref" -- "${gate_inputs[@]}" \
@@ -136,7 +143,12 @@ loader (Debian and Ubuntu: apt install libxkbcommon-x11-0 libxcursor1 libxi6 lib
     printf '%s\r\n' "raea $version for Windows x86_64 (Windows 10 or 11, a DirectX 12 or Vulkan GPU driver; with no GPU, Mesa's lavapipe and WGPU_BACKEND=vulkan)." \
       "It needs the Microsoft Visual C++ Redistributable (x64), which most machines already have:" \
       "https://aka.ms/vs/17/release/vc_redist.x64.exe" > "$stage/README.txt" ;;
-  *) cp "$bin/raea" "$bin/libraea_bundle.dylib" "$bin/raea-perceive" "$bin/raea-rune-host" "$bin/raea-page-host" "$stage/bin/"
+  macos-x86_64)
+    cp "$bin/raea" "$bin/libraea_bundle.dylib" "$stage/bin/"
+    codesign --force --sign - "$stage/bin/libraea_bundle.dylib"
+    printf '%s\n' "Raea $version Intel macOS CLI candidate. See INTEL-MAC.md for validation status and limitations." > "$stage/README"
+    git archive "$ref" docs/intel-mac.md | tar -xO docs/intel-mac.md > "$stage/INTEL-MAC.md" ;;
+  macos-arm64) cp "$bin/raea" "$bin/libraea_bundle.dylib" "$bin/raea-perceive" "$bin/raea-rune-host" "$bin/raea-page-host" "$stage/bin/"
     # stripped as they linked (tools/link-jit.sh, #88); a binary that still holds its debug map is a build from before
     for f in raea raea-page-host raea-rune-host raea-perceive; do
       [ "$(nm -a "$stage/bin/$f" 2>/dev/null | awk '$2 == "-"' | head -2 | wc -l)" -lt 2 ] || echo "release.sh: $f isn't stripped (a dist build strips it as it links; RAEA_KEEP_SYMBOLS=1 keeps them)" >&2
@@ -162,14 +174,18 @@ git archive "$ref" sdk/tsconfig.base.json sdk/ui/src sdk/ui/package.json sdk/ui/
   "${pkgs[@]}" \
   tools/tokensynth tools/sao tools/goo tools/splat tools/matchmove tools/clothes tools/garments tools/ensure.sh sdk/guides/craft docs/sdk-coverage.md engine/cli/template/theme.css ':(glob)engine/cli/src/*.ts' \
   | tar -x -C "$stage/share/raea"
+# Ship the license and notices with the runtime so the installer retains them.
+git archive "$ref" LICENSE NOTICE LICENSES | tar -x -C "$stage/share/raea"
 # a folder copied as it is here (links kept, as rsync -a; tar, since Git's bash on Windows has no rsync)
 copy() { mkdir -p "$2" && tar -C "$(dirname "$1")" --exclude .cache -cf - "$(basename "$1")" | tar -C "$2" -xf -; }
 # styles.gen's Tailwind (raea compiles it on JavaScriptCore: runtime/bundle/src/styles.rs), as installed here
 copy sdk/react/tw/node_modules/tailwindcss "$stage/share/raea/sdk/react/tw/node_modules"
 # `raea song`'s beat model (Beat This! small0, MIT), copied on first use where raea-perceive reads it
 # (raea_io_home::models: ~/.local/share/raea-models, %LOCALAPPDATA%\raea\models on Windows); every platform since #43
-mkdir -p "$stage/share/raea/models/beat-this"
-cp ~/.local/share/raea-models/beat-this/beat_this_small0.onnx "$stage/share/raea/models/beat-this/"
+if [ "$intel_candidate" = 0 ]; then
+  mkdir -p "$stage/share/raea/models/beat-this"
+  cp ~/.local/share/raea-models/beat-this/beat_this_small0.onnx "$stage/share/raea/models/beat-this/"
+fi
 # the agent skill (raea: raea-skills at the commit REF pins), which the installer copies into
 # ~/.claude/skills; raea-work (sdk/skills, work.raea.io's showcase pages) is internal and stays out. Only the skill
 # folders (each with its SKILL.md) ship: raea-skills' skills/ is also its Claude plugin, whose manifest, hooks, README
