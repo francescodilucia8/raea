@@ -67,17 +67,14 @@ fi
 [ "${actual%% *}" = "$expected" ] || fail "the download's checksum doesn't match."
 tar -xzf "$tmp/$asset" -C "$tmp"
 [ -d "$tmp/raea/share/raea" ] || fail "archive has no runtime files"
-[ -x "$tmp/raea/bin/raea" ] || [ -x "$tmp/raea/bin/raea-motion" ] || fail "archive has no Raea executable"
+[ -x "$tmp/raea/bin/raea" ] || fail "archive has no Raea executable"
 
 # replace the old install whole (a release's files go together)
 mkdir -p "$prefix"
 rm -rf "$prefix/bin" "$prefix/share"
 mv "$tmp/raea/bin" "$tmp/raea/share" "$prefix/"
 mkdir -p "$bindir"
-# raea is the command (releases before 10-24 named it raea-motion: their `raea` links to that); an earlier install's
-# raea-motion link goes
-if [ -e "$prefix/bin/raea" ]; then ln -sf "$prefix/bin/raea" "$bindir/raea"; else ln -sf "$prefix/bin/raea-motion" "$bindir/raea"; fi
-if [ -L "$bindir/raea-motion" ] && [ -e "$prefix/bin/raea" ]; then rm -f "$bindir/raea-motion"; fi
+ln -sf "$prefix/bin/raea" "$bindir/raea"
 say "installed raea $version in $prefix (linked from $bindir)"
 # Linux: raea links ALSA and fontconfig, which a bare system (a server, a container) may not have: say what's missing
 # rather than let the first `raea` fail with a loader error (0.1.1-rc2 on ubuntu:24.04, 11-10)
