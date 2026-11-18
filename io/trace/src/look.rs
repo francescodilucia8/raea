@@ -2,7 +2,32 @@
 
 use super::*;
 
-// ---- looking back
+/// `raea traces [show [N|last|DIR]]`: the sessions every raea app left (newest first: how each ended, its
+/// glitches), or one told in full (why it crashed, its worst frames, its errors, its memory).
+pub fn traces(args: &[String]) -> Result<String, String> {
+    let all = sessions();
+    if args.get(1).map(String::as_str) == Some("show") {
+        let which = args.get(2).map(String::as_str).unwrap_or("last");
+        let dir = match which {
+            "last" => all.first().map(|s| s.1.clone()),
+            n if n.parse::<usize>().is_ok() => all.get(n.parse::<usize>().unwrap()).map(|s| s.1.clone()),
+            p => Some(PathBuf::from(p)),
+        }
+        .ok_or("no such session (raea traces lists them)")?;
+        return Ok(summarize(&dir));
+    }
+    let mut out = format!("{:<4} {:<12} {:<28} {:<18} {:>9} {:>8}  {}\n", "#", "app", "session", "ended", "glitches", "errors", "folder");
+    for (i, (app, d)) in all.iter().enumerate().take(40) {
+        let events = std::fs::read_to_string(d.join("events.jsonl")).unwrap_or_default();
+        let glitches = events.lines().filter(|l| l.contains("\"kind\":\"glitch\"")).count();
+        let errors = events.lines().filter(|l| l.contains("\"level\":\"ERROR\"") || l.contains("\"kind\":\"error\"") || l.contains("\"kind\":\"gpu_error\"")).count();
+        out += &format!("{:<4} {:<12} {:<28} {:<18} {:>9} {:>8}  {}\n", i, app, d.file_name().unwrap_or_default().to_string_lossy(), status(d), glitches, errors, d.display());
+    }
+    if all.is_empty() {
+        out += "(no sessions yet)\n";
+    }
+    Ok(out)
+}
 
 /// Every app's sessions, newest first: (app, folder).
 pub fn sessions() -> Vec<(String, PathBuf)> {

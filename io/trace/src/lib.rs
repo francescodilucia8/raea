@@ -28,7 +28,7 @@ mod crash;
 mod look;
 
 use crash::*;
-pub use look::{sessions, status, summarize};
+pub use look::{sessions, status, summarize, traces};
 
 struct Session {
     dir: PathBuf,

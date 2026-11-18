@@ -79,33 +79,6 @@ pub fn cli(args: &[String]) -> i32 {
     code
 }
 
-/// `raea traces [show [N|last|DIR]]`: the sessions every raea app left (newest first: how each ended, its
-/// glitches), or one told in full (why it crashed, its worst frames, its errors, its memory).
-pub fn traces(args: &[String]) -> R<String> {
-    let all = raea_io_trace::sessions();
-    if args.get(1).map(String::as_str) == Some("show") {
-        let which = args.get(2).map(String::as_str).unwrap_or("last");
-        let dir = match which {
-            "last" => all.first().map(|s| s.1.clone()),
-            n if n.parse::<usize>().is_ok() => all.get(n.parse::<usize>().unwrap()).map(|s| s.1.clone()),
-            p => Some(PathBuf::from(p)),
-        }
-        .ok_or("no such session (raea traces lists them)")?;
-        return Ok(raea_io_trace::summarize(&dir));
-    }
-    let mut out = format!("{:<4} {:<12} {:<28} {:<18} {:>9} {:>8}  {}\n", "#", "app", "session", "ended", "glitches", "errors", "folder");
-    for (i, (app, d)) in all.iter().enumerate().take(40) {
-        let events = std::fs::read_to_string(d.join("events.jsonl")).unwrap_or_default();
-        let glitches = events.lines().filter(|l| l.contains("\"kind\":\"glitch\"")).count();
-        let errors = events.lines().filter(|l| l.contains("\"level\":\"ERROR\"") || l.contains("\"kind\":\"error\"") || l.contains("\"kind\":\"gpu_error\"")).count();
-        out += &format!("{:<4} {:<12} {:<28} {:<18} {:>9} {:>8}  {}\n", i, app, d.file_name().unwrap_or_default().to_string_lossy(), raea_io_trace::status(d), glitches, errors, d.display());
-    }
-    if all.is_empty() {
-        out += "(no sessions yet)\n";
-    }
-    Ok(out)
-}
-
 /// `raea check`'s host (the TS evaluator, the bundle runner, taste's kinds), which runs the notes' asks too (DR6).
 const CHECK: raea_app_direction::check::Host = raea_app_direction::check::Host { ts: raea_app_direction::ts::Host { eval: spec::spec_json, run: run_bundle }, kinds: taste_kinds };
 fn notes_run(project: &Path, rules: &[raea_app_notes::check::Rule], args: &[String], whole: bool) -> R<Vec<raea_app_notes::check::Ran>> {
@@ -231,7 +204,7 @@ pub fn run(args: &[String]) -> R<String> {
     if args[0] == "fingerprint" { std::process::exit(raea_app_fingerprint::cli(&args[1..], spec::spec_json)); } // a person's sense of good work as axes over on-device encoders (docs/fingerprint.feature FP3a, FP14a)
     #[cfg(not(all(target_os = "macos", target_arch = "x86_64")))]
     if args[0] == "index" { std::process::exit(raea_sys_index::cli::cli(&args[1..])); } // every picture on a folder or a drive searchable by words, embedded on the Neural Engine (docs/index.feature IX13)
-    if args[0] == "traces" { return traces(args); }
+    if args[0] == "traces" { return raea_io_trace::traces(args); }
     if args.first().map(String::as_str) == Some("play") {
         return raea_app_play::play(args);
     }
