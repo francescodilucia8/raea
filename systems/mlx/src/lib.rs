@@ -10,7 +10,7 @@
 //! whose parity bar needs exact f32 says so; most run in f16 or bf16 anyway.
 //!
 //! The crate is empty on every OS but macOS.
-#![cfg(target_os = "macos")]
+#![cfg(all(target_os = "macos", target_arch = "aarch64"))]
 
 pub mod nn;
 pub mod tensor;

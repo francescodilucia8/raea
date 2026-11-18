@@ -1,0 +1,90 @@
+name: Intel macOS CLI
+
+on:
+  pull_request:
+  push:
+    branches: [main, intel-macos-cli]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_RELEASE_DEBUG: "0"
+  MACOSX_DEPLOYMENT_TARGET: "14.0"
+  INTEL_TARGET: x86_64-apple-darwin
+
+jobs:
+  installer:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/release/test-install.py
+
+  intel:
+    runs-on: macos-15-intel
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pinned agent skills
+        run: git submodule update --init skills
+      - name: Native build tools
+        run: |
+          test "$(uname -m)" = x86_64
+          rustc -vV
+          brew install cmake ninja nasm
+          df -h .
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Runtime packages
+        run: for d in sdk/react/js sdk/react/tw; do (cd "$d" && bun install --frozen-lockfile); done
+      - name: Verify the Intel renderer dependency graph
+        run: |
+          cargo tree --locked --target "$INTEL_TARGET" -p raea-cli --no-default-features -e normal,build --prefix none > "$RUNNER_TEMP/intel-deps.txt"
+          if grep -E '^(ort(-sys)?|mlx-(rs|sys)) v' "$RUNNER_TEMP/intel-deps.txt"; then
+            echo "The Intel CLI still resolves an unavailable native library" >&2
+            exit 1
+          fi
+      - name: Check CLI and tests on pull requests
+        if: github.event_name == 'pull_request'
+        env:
+          RAEA_BUNDLE_SKIP: "1"
+        run: cargo check --locked --target "$INTEL_TARGET" -p raea-cli --no-default-features --tests
+      - name: Build CLI and bundler in release mode
+        if: github.event_name != 'pull_request'
+        env:
+          CARGO_BUILD_JOBS: "2"
+          CMAKE_BUILD_PARALLEL_LEVEL: "2"
+        run: cargo build --locked --release --target "$INTEL_TARGET" -p raea-cli --bin raea --no-default-features
+      - name: Package and inspect the Intel candidate
+        if: github.event_name != 'pull_request'
+        env:
+          RAEA_INTEL_CANDIDATE: "1"
+        run: |
+          version="0.1.0-intel.${GITHUB_SHA:0:12}"
+          bash tools/release.sh "$version" "target/$INTEL_TARGET/release" "$GITHUB_SHA"
+          (cd dist && shasum -a 256 -c ./*-macos-x86_64.tar.gz.sha256)
+          {
+            echo '### Intel macOS CLI candidate'
+            echo "Commit: $GITHUB_SHA"
+            echo "Target: $INTEL_TARGET"
+            echo 'Cargo profile: release'
+            du -sh target dist
+            cat dist/*-macos-x86_64.tar.gz.sha256
+            echo 'Hardware acceptance requires the native smoke test on the target Intel Mac.'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        with:
+          name: raea-macos-x86_64-${{ github.sha }}
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            dist/raea-*-macos-x86_64.tar.gz
+            dist/raea-*-macos-x86_64.tar.gz.sha256
+            tools/install.sh
+            tools/release/intel-smoke.sh

@@ -2,7 +2,7 @@
 title: "Install raea"
 summary: "Install raea on macOS, Linux or Windows, update it, pin a version, and know which files it puts where."
 order: 1
-sources: ["apps/site/public/install", "apps/site/public/install.ps1", "engine/cli/src/skill.rs"]
+sources: ["tools/install.sh", "apps/site/public/install.ps1", "engine/cli/src/skill.rs"]
 ---
 
 After this page you will have the `raea` command on your PATH and the raea skill installed for your coding agent.
@@ -11,6 +11,18 @@ This page installs the engine. The desktop app, where you make video and games w
 [raea.io](https://raea.io) for the Mac, Windows and Linux, and tells you when a new version is out.
 
 ## Install
+
+On Intel macOS, see the [candidate build, installation and playback check](../../intel-mac.md).
+The fork's Unix installer selects the Intel archive and verifies its SHA-256 before replacing an existing
+installation. The candidates are distributed as workflow artifacts until native validation passes.
+
+For a published fork version, set `version` to the version shown on the
+[fork releases page](https://github.com/francescodilucia8/raea/releases), without its leading `v`, and run:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/francescodilucia8/raea/intel-macos-cli/tools/install.sh -o raea-install.sh
+RAEA_VERSION="$version" sh raea-install.sh
+```
 
 On macOS with Apple Silicon, or on Linux on x86_64:
 
@@ -82,7 +94,7 @@ from there. From 0.1.3, raea updates wherever it was opened from, and says so if
 Set `RAEA_VERSION` to install a particular release instead of the newest:
 
 ```sh
-RAEA_VERSION=0.1.1 curl -fsSL https://raea.io/install | sh
+curl -fsSL https://raea.io/install | RAEA_VERSION=0.1.1 sh
 ```
 
 On Windows:
